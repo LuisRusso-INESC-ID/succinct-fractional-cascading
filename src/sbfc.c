@@ -7,7 +7,8 @@
  *
  * usage: prog [--cpu c] [--csv] [--stride d] [--ckpt t]
  *             [--bv plain|ef|rrr|auto] [--pmu] [--verify]
- *             [--seed s] [--range r] [--vary] k n queries
+ *             [--seed s] [--range r] [--vary]
+ *             [--dist uniform|zipf|cluster] [--baseline] k n queries
  *
  * --ckpt t stores sampled keys at levels 1, 1+t, 1+2t, ...;
  * t = 0 stores none (zero key duplication).
@@ -18,6 +19,10 @@
  * references and misses, branches and branch misses) through
  * perf_event_open around the query loop only, and appends them to
  * the CSV line.  Pin the process with --cpu on hybrid CPUs.
+ * --dist picks the input: uniform values (default); zipf, list
+ * lengths following a Zipf law with N = k n kept; or cluster,
+ * values in a few narrow clusters per list, queried near the data.
+ * --baseline answers queries with k independent binary searches.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -43,6 +48,10 @@
 
 enum { MAT = 0, M1ONLY = 1, REV = 2 };
 enum { BV_PLAIN = 0, BV_EF = 1, BV_RRR = 2, BV_AUTO = 3 };
+enum { DIST_UNIFORM = 0, DIST_ZIPF = 1, DIST_CLUSTER = 2 };
+
+#define CLUSTERS 8
+#define CLUSTER_WIDTH 65536
 
 #define SEL_RATE 128
 #define EF_SEL_RATE 256
@@ -98,7 +107,7 @@ typedef struct {
 static space_t space;
 
 typedef struct {
-    int cpu, csv, d, t, verify, vary, bv, pmu;
+    int cpu, csv, d, t, verify, vary, bv, pmu, dist, baseline;
     uint64_t seed, range;
     int k;
     size_t n, q;
@@ -873,9 +882,20 @@ static void query_reverse(const sbfc_t *s, uint32_t x, size_t *out)
     }
 }
 
+static int baseline;
+
+/* k independent binary searches, the reference point */
+static void query_baseline(const sbfc_t *s, uint32_t x, size_t *out)
+{
+    for (int i = 0; i < s->k; i++)
+        out[i] = lb_arr(s->L[i], 0, s->n[i], x);
+}
+
 static void query(const sbfc_t *s, uint32_t x, size_t *out)
 {
-    if (VARIANT == REV)
+    if (baseline)
+        query_baseline(s, x, out);
+    else if (VARIANT == REV)
         query_reverse(s, x, out);
     else
         query_forward(s, x, out);
@@ -934,17 +954,78 @@ static int cmp_u32(const void *a, const void *b)
     return (x > y) - (x < y);
 }
 
+static uint64_t cluster_width(const opts_t *o)
+{
+    if (!o->range)
+        return CLUSTER_WIDTH;
+    return o->range / 16 ? o->range / 16 : 1;
+}
+
+/* Zipf list lengths: list of rank r gets k n / (r H_k) keys */
+static void zipf_lengths(const opts_t *o, size_t *n)
+{
+    int k = o->k;
+    int *rk = xmalloc((size_t)k * sizeof *rk);
+    double h = 0;
+    for (int i = 0; i < k; i++) {
+        rk[i] = i + 1;
+        h += 1.0 / (i + 1);
+    }
+    for (int i = k - 1; i > 0; i--) {
+        int j = (int)(rnd() % (uint64_t)(i + 1));
+        int t = rk[i];
+        rk[i] = rk[j];
+        rk[j] = t;
+    }
+    for (int i = 0; i < k; i++)
+        n[i] = (size_t)((double)k * (double)o->n / (rk[i] * h) + 0.5);
+    free(rk);
+}
+
+static void cluster_values(const opts_t *o, uint32_t *a, size_t len)
+{
+    uint64_t base[CLUSTERS], w = cluster_width(o);
+    for (int c = 0; c < CLUSTERS; c++)
+        base[c] = rnd_val(o->range);
+    for (size_t j = 0; j < len; j++) {
+        uint64_t v = base[rnd() % CLUSTERS] + rnd() % w;
+        a[j] = (uint32_t)(o->range ? v % o->range : v);
+    }
+}
+
 static uint32_t **make_lists(const opts_t *o, size_t *n)
 {
     uint32_t **L = xmalloc((size_t)o->k * sizeof *L);
-    for (int i = 0; i < o->k; i++) {
+    for (int i = 0; i < o->k; i++)
         n[i] = o->vary ? (size_t)(rnd() % (o->n + 1)) : o->n;
+    if (o->dist == DIST_ZIPF)
+        zipf_lengths(o, n);
+    for (int i = 0; i < o->k; i++) {
         L[i] = xmalloc(n[i] * sizeof *L[i]);
-        for (size_t j = 0; j < n[i]; j++)
-            L[i][j] = rnd_val(o->range);
+        if (o->dist == DIST_CLUSTER) {
+            cluster_values(o, L[i], n[i]);
+        } else {
+            for (size_t j = 0; j < n[i]; j++)
+                L[i][j] = rnd_val(o->range);
+        }
         qsort(L[i], n[i], sizeof *L[i], cmp_u32);
     }
     return L;
+}
+
+/* uniform queries, or near a random key for clustered inputs */
+static uint32_t make_query(const opts_t *o, uint32_t **L,
+                           const size_t *n)
+{
+    if (o->dist != DIST_CLUSTER)
+        return o->range ? rnd_val(o->range + 2) : rnd_val(0);
+    int i = (int)(rnd() % (uint64_t)o->k);
+    if (!n[i])
+        return rnd_val(o->range);
+    uint64_t w = cluster_width(o) / 4 + 1;
+    uint64_t v = L[i][rnd() % n[i]] + rnd() % (2 * w);
+    v = v >= w ? v - w : 0;
+    return (uint32_t)(o->range ? v % (o->range + 2) : v);
 }
 
 /* ---------------- CPU pinning and argument parsing ------------ */
@@ -985,7 +1066,9 @@ static void usage(const char *prog)
     fprintf(stderr,
             "usage: %s [--cpu c] [--csv] [--stride d] [--ckpt t]\n"
             "       [--bv plain|ef|rrr|auto] [--pmu] [--verify]\n"
-            "       [--seed s] [--range r] [--vary] k n queries\n",
+            "       [--seed s] [--range r] [--vary]\n"
+            "       [--dist uniform|zipf|cluster] [--baseline]\n"
+            "       k n queries\n",
             prog);
     exit(2);
 }
@@ -999,16 +1082,29 @@ static int parse_bv(opts_t *o, const char *v)
     return -1;
 }
 
+static int parse_dist(opts_t *o, const char *v)
+{
+    static const char *names[] = { "uniform", "zipf", "cluster" };
+    for (int j = 0; j < 3; j++)
+        if (v && !strcmp(v, names[j]))
+            return o->dist = j, 0;
+    return -1;
+}
+
 static int parse_opt(opts_t *o, int argc, char **argv, int *i)
 {
     const char *a = argv[*i];
     unsigned long long v = 0;
     if (!strcmp(a, "--bv"))
         return *i + 1 < argc ? parse_bv(o, argv[++*i]) : -1;
+    if (!strcmp(a, "--dist"))
+        return *i + 1 < argc ? parse_dist(o, argv[++*i]) : -1;
     if (!strcmp(a, "--csv"))
         return o->csv = 1, 0;
     if (!strcmp(a, "--pmu"))
         return o->pmu = 1, 0;
+    if (!strcmp(a, "--baseline"))
+        return o->baseline = 1, 0;
     if (!strcmp(a, "--verify"))
         return o->verify = 1, 0;
     if (!strcmp(a, "--vary"))
@@ -1237,8 +1333,8 @@ static void report(const opts_t *o, const sbfc_t *s, size_t N,
                    double ns, uint64_t sum)
 {
     double div = N ? (double)N : 1.0;
-    double ek = extra_key_bits(s) / div;
-    double st = struct_bits(s) / div;
+    double ek = o->baseline ? 0.0 : extra_key_bits(s) / div;
+    double st = o->baseline ? 0.0 : struct_bits(s) / div;
     if (o->csv) {
         printf("%d,%zu,%.4f,%.4f,%.4f,%.2f",
                o->k, N, ek, st, ek + st, ns);
@@ -1285,7 +1381,7 @@ int main(int argc, char **argv)
         N += n[i];
     uint32_t *qs = xmalloc(o.q * sizeof *qs);
     for (size_t j = 0; j < o.q; j++)
-        qs[j] = o.range ? rnd_val(o.range + 2) : rnd_val(0);
+        qs[j] = make_query(&o, L, n);
 
     sbfc_t s;
     init_binom();
@@ -1293,6 +1389,7 @@ int main(int argc, char **argv)
     sbfc_build(&s, L, n, o.k, o.d, o.t, VARIANT == REV, o.bv);
     size_t *out = xmalloc((size_t)o.k * sizeof *out);
     uint64_t sum = 0;
+    baseline = o.baseline;
     if (o.pmu && pmu_open(o.cpu >= 0) != 0)
         return 1;
     double ns = bench(&s, qs, o.q, out, &sum);

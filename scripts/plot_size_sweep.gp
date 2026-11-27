@@ -8,10 +8,10 @@ if (!exists("OUT_EPS"))  OUT_EPS  = "sbfc_size_sweep.eps"
 set datafile separator ","
 
 # --- 1. PDF output ---
-set terminal pdfcairo enhanced color size 6.3in, 3.0in font "Helvetica,10"
+set terminal pdfcairo enhanced color size 5.4in, 2.9in font "Helvetica,10"
 set output OUT_PDF
 
-set multiplot layout 1,2 margins 0.095, 0.985, 0.17, 0.80 spacing 0.11, 0.12
+set multiplot layout 1,2 margins 0.11, 0.985, 0.17, 0.79 spacing 0.12, 0.12
 
 # Left panel: Query latency vs per-list length |L_i| (log2 x, log10 y)
 set title "Query time (k = 16)" font ",11"
@@ -42,7 +42,7 @@ plot CSV_FILE every ::1 using 1:5  with linespoints lw 1.4 pt 7 ps 0.8 lc rgb "#
 
 # Shared horizontal legend for all panels: an invisible full-width
 # plot that only draws the key; afterwards restore the defaults.
-set lmargin at screen 0.095; set rmargin at screen 0.985
+set lmargin at screen 0.02; set rmargin at screen 0.985
 set tmargin at screen 0.995; set bmargin at screen 0.89
 unset border; unset tics; unset xlabel; unset ylabel; unset title
 unset grid; unset logscale
@@ -58,10 +58,10 @@ unset multiplot
 unset output
 
 # --- 2. EPS output ---
-set terminal postscript eps enhanced color size 6.3in, 3.0in font "Helvetica,10"
+set terminal postscript eps enhanced color size 5.4in, 2.9in font "Helvetica,10"
 set output OUT_EPS
 
-set multiplot layout 1,2 margins 0.095, 0.985, 0.17, 0.80 spacing 0.11, 0.12
+set multiplot layout 1,2 margins 0.11, 0.985, 0.17, 0.79 spacing 0.12, 0.12
 
 set title "Query time (k = 16)" font ",11"
 set xlabel "Elements per list |L_i|"
@@ -90,7 +90,7 @@ plot CSV_FILE every ::1 using 1:5  with linespoints lw 1.4 pt 7 ps 0.8 lc rgb "#
 
 # Shared horizontal legend for all panels: an invisible full-width
 # plot that only draws the key; afterwards restore the defaults.
-set lmargin at screen 0.095; set rmargin at screen 0.985
+set lmargin at screen 0.02; set rmargin at screen 0.985
 set tmargin at screen 0.995; set bmargin at screen 0.89
 unset border; unset tics; unset xlabel; unset ylabel; unset title
 unset grid; unset logscale

@@ -1,0 +1,19 @@
+dist,config,N,total_extra_bits_per_in,ns_median
+uniform,Materialized d=2,8388608,34.0012,4154.75
+uniform,M1-only d=2,8388608,2.7516,7552.92
+uniform,Reverse d=2,8388608,2.7477,14329.12
+uniform,Materialized EF d=16,8388608,2.5310,10725.81
+uniform,Reverse EF d=16,8388608,0.4155,10822.32
+uniform,Independent searches,8388608,0.0000,15525.74
+zipf,Materialized d=2,8388604,33.9397,4225.10
+zipf,M1-only d=2,8388604,2.8861,7254.69
+zipf,Reverse d=2,8388604,2.7509,13656.57
+zipf,Materialized EF d=16,8388604,2.3912,9829.60
+zipf,Reverse EF d=16,8388604,0.2709,12917.16
+zipf,Independent searches,8388604,0.0000,12429.37
+cluster,Materialized d=2,8388608,34.0012,2274.53
+cluster,M1-only d=2,8388608,2.7516,6618.56
+cluster,Reverse d=2,8388608,2.7477,11363.88
+cluster,Materialized EF d=16,8388608,2.5310,7113.43
+cluster,Reverse EF d=16,8388608,0.4155,6703.87
+cluster,Independent searches,8388608,0.0000,9779.29

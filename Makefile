@@ -46,7 +46,7 @@ PLOT_GP  := scripts/plot_sbfc.gp
 PDF_PLOT := $(RES)/sbfc_scaling.pdf
 EPS_PLOT := $(RES)/sbfc_scaling.eps
 
-.PHONY: all bins test csv plots sweep-size sweep-plots perf-pinned perf-tex bench-all smoke-test paper-assets clean distclean
+.PHONY: all bins test csv plots sweep-size sweep-plots perf-pinned perf-tex bench-all smoke-test dist-table paper-assets clean distclean
 
 all: bins test_bv
 
@@ -82,6 +82,23 @@ test: bins test_bv
 	  done; \
 	  echo "OK  : $$bin --bv $$bv"; \
 	 done; \
+	done
+	@for bin in $(BIN_MAT) $(BIN_M1) $(BIN_REV); do \
+	  for dist in zipf cluster; do \
+	    for bv in plain ef rrr; do \
+	      for k in 1 3 9 17; do \
+	        for d in 2 4; do \
+	          ./$$bin --verify --vary --range 60 --dist $$dist \
+	            --bv $$bv --stride $$d --seed $$k$$d $$k 40 3000 \
+	            > /dev/null || { echo "FAIL: $$bin dist=$$dist" \
+	            "bv=$$bv k=$$k d=$$d"; exit 1; }; \
+	        done; \
+	      done; \
+	    done; \
+	    ./$$bin --verify --dist $$dist 16 20000 20000 > /dev/null \
+	      || { echo "FAIL: $$bin dist=$$dist large"; exit 1; }; \
+	  done; \
+	  echo "OK  : $$bin --dist zipf, cluster"; \
 	done
 
 $(CSV_MAT): $(BIN_MAT)
@@ -209,6 +226,7 @@ $(PERF_TEX): $(PERF_CSV)
 			print "\\label{tab:perf-pinned-auto}"; \
 			print "\\small"; \
 			print "\\setlength{\\tabcolsep}{4pt}"; \
+			print "\\begin{adjustbox}{max width=\\linewidth}"; \
 			print "\\begin{tabular}{@{}lrrcrrrr@{}}"; \
 			print "\\toprule"; \
 			print "Variant & Cycl./q & Instr./q & IPC &"; \
@@ -225,6 +243,7 @@ $(PERF_TEX): $(PERF_CSV)
 		END { \
 			print "\\bottomrule"; \
 			print "\\end{tabular}"; \
+			print "\\end{adjustbox}"; \
 			print "\\end{table}"; \
 		}' $(PERF_CSV) > $@
 	@echo "Wrote $(PERF_TEX)"
@@ -262,6 +281,37 @@ $(PDF_PLOT): $(CSV_ALL) $(PLOT_GP)
 $(EPS_PLOT): $(PDF_PLOT)
 	@test -f $(EPS_PLOT)
 
+# Non-uniform inputs (--dist): space and median time of 3 runs.
+CSV_DIST   := $(RES)/benchmark_distributions.csv
+DIST_K     := 128
+DIST_RUNS  := 3
+DIST_CONFS := "Materialized d=2|$(BIN_MAT)|--stride 2" \
+	"M1-only d=2|$(BIN_M1)|--stride 2" \
+	"Reverse d=2|$(BIN_REV)|--stride 2" \
+	"Materialized EF d=16|$(BIN_MAT)|--stride 16 --bv ef" \
+	"Reverse EF d=16|$(BIN_REV)|--stride 16 --bv ef" \
+	"Independent searches|$(BIN_REV)|--baseline"
+
+dist-table: bins
+	@echo "dist,config,N,total_extra_bits_per_in,ns_median" > $(CSV_DIST)
+	@for dist in uniform zipf cluster; do \
+		for conf in $(DIST_CONFS); do \
+			label="$${conf%%|*}"; rest="$${conf#*|}"; \
+			bin="$${rest%%|*}"; opts="$${rest#*|}"; \
+			r=1; out=""; \
+			while [ "$$r" -le "$(DIST_RUNS)" ]; do \
+				out="$$out$$(./$$bin --cpu $(CPU_CORE) --csv --dist $$dist \
+					$$opts $(DIST_K) $(LIST_N) $(SWEEP_QUERIES))\n"; \
+				r=$$((r + 1)); \
+			done; \
+			printf "$$out" | sort -t, -k6,6g | awk -F, -v d="$$dist" \
+				-v c="$$label" -v m="$$(( ($(DIST_RUNS) + 1) / 2 ))" \
+				'NR == m { printf "%s,%s,%s,%s,%s\n", d, c, $$2, $$5, $$6 }' \
+				>> $(CSV_DIST); \
+		done; \
+	done
+	@echo "Wrote $(CSV_DIST)"
+
 # Copy the current figures and counter table into the Overleaf
 # clone (run make bench-all first to refresh them).
 paper-assets:
@@ -276,4 +326,4 @@ clean:
 distclean: clean
 	rm -f $(CSV_MAT) $(CSV_M1) $(CSV_REV) $(CSV_ALL) $(CSV_SWEEP) \
 	      $(PDF_SWEEP) $(EPS_SWEEP) $(PERF_CSV) $(PERF_TEX) \
-	      $(PDF_PLOT) $(EPS_PLOT)
+	      $(PDF_PLOT) $(EPS_PLOT) $(CSV_DIST)

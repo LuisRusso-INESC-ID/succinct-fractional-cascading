@@ -8,10 +8,10 @@ if (!exists("OUT_EPS"))  OUT_EPS  = "sbfc_scaling.eps"
 set datafile separator ","
 
 # --- 1. PDF output ---
-set terminal pdfcairo enhanced color size 6.3in, 3.0in font "Helvetica,10"
+set terminal pdfcairo enhanced color size 5.4in, 2.9in font "Helvetica,10"
 set output OUT_PDF
 
-set multiplot layout 1,3 margins 0.085, 0.99, 0.17, 0.80 spacing 0.085, 0.10
+set multiplot layout 1,3 margins 0.10, 0.99, 0.17, 0.79 spacing 0.095, 0.10
 
 # Panel 1: Query latency (ns/query)
 set title "Query time" font ",11"
@@ -55,7 +55,7 @@ plot CSV_FILE every ::1 using 1:4  with linespoints lw 1.4 pt 7 ps 0.8 lc rgb "#
 
 # Shared horizontal legend for all panels: an invisible full-width
 # plot that only draws the key; afterwards restore the defaults.
-set lmargin at screen 0.085; set rmargin at screen 0.99
+set lmargin at screen 0.02; set rmargin at screen 0.99
 set tmargin at screen 0.995; set bmargin at screen 0.89
 unset border; unset tics; unset xlabel; unset ylabel; unset title
 unset grid; unset logscale
@@ -71,10 +71,10 @@ unset multiplot
 unset output
 
 # --- 2. EPS output ---
-set terminal postscript eps enhanced color size 6.3in, 3.0in font "Helvetica,10"
+set terminal postscript eps enhanced color size 5.4in, 2.9in font "Helvetica,10"
 set output OUT_EPS
 
-set multiplot layout 1,3 margins 0.085, 0.99, 0.17, 0.80 spacing 0.085, 0.10
+set multiplot layout 1,3 margins 0.10, 0.99, 0.17, 0.79 spacing 0.095, 0.10
 
 set title "Query time" font ",11"
 set xlabel "Number of lists k"
@@ -115,7 +115,7 @@ plot CSV_FILE every ::1 using 1:4  with linespoints lw 1.4 pt 7 ps 0.8 lc rgb "#
 
 # Shared horizontal legend for all panels: an invisible full-width
 # plot that only draws the key; afterwards restore the defaults.
-set lmargin at screen 0.085; set rmargin at screen 0.99
+set lmargin at screen 0.02; set rmargin at screen 0.99
 set tmargin at screen 0.995; set bmargin at screen 0.89
 unset border; unset tics; unset xlabel; unset ylabel; unset title
 unset grid; unset logscale
