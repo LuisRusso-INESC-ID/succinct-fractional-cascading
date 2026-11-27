@@ -46,7 +46,7 @@ PLOT_GP  := scripts/plot_sbfc.gp
 PDF_PLOT := $(RES)/sbfc_scaling.pdf
 EPS_PLOT := $(RES)/sbfc_scaling.eps
 
-.PHONY: all bins test csv plots sweep-size sweep-plots perf-pinned perf-tex bench-all smoke-test dist-table paper-assets clean distclean
+.PHONY: all bins test csv plots sweep-size sweep-plots perf-pinned perf-tex bench-all smoke-test dist-table gap-table paper-assets clean distclean
 
 all: bins test_bv
 
@@ -100,6 +100,15 @@ test: bins test_bv
 	  done; \
 	  echo "OK  : $$bin --dist zipf, cluster"; \
 	done
+	@for dist in uniform zipf; do \
+	  for d in 2 4 16; do \
+	    ./$(BIN_REV) --gapstats --csv --dist $$dist --stride $$d \
+	      --seed $$d 16 20000 20000 | awk -F, -v t="$$dist d=$$d" \
+	      '$$8 != 0 || $$7 >= 1 { print "FAIL: gap bound " t; \
+	        exit 1 }' || exit 1; \
+	  done; \
+	done; \
+	echo "OK  : $(BIN_REV) mean gaps below 2d n/(n'+2)"
 
 $(CSV_MAT): $(BIN_MAT)
 	@echo "k,N,extra_key_bits_per_in,struct_bits_per_in,total_extra_bits_per_in,ns_per_query" > $@
@@ -312,6 +321,20 @@ dist-table: bins
 	done
 	@echo "Wrote $(CSV_DIST)"
 
+# Reverse-cascading gaps against the expected-cost analysis.
+CSV_GAPS := $(RES)/reverse_gaps.csv
+
+gap-table: bins
+	@echo "dist,k,N,d,mean_g,estimate,bound,max_ratio,levels_over,cmp_level,cmp_level_bound,cmp_query,cmp_query_bound" > $(CSV_GAPS)
+	@for dist in uniform zipf cluster; do \
+		for d in 2 4 8 16 64; do \
+			printf "%s," "$$dist" >> $(CSV_GAPS); \
+			./$(BIN_REV) --gapstats --csv --dist $$dist --stride $$d \
+				$(DIST_K) $(LIST_N) $(SWEEP_QUERIES) >> $(CSV_GAPS); \
+		done; \
+	done
+	@echo "Wrote $(CSV_GAPS)"
+
 # Copy the current figures and counter table into the Overleaf
 # clone (run make bench-all first to refresh them).
 paper-assets:
@@ -326,4 +349,4 @@ clean:
 distclean: clean
 	rm -f $(CSV_MAT) $(CSV_M1) $(CSV_REV) $(CSV_ALL) $(CSV_SWEEP) \
 	      $(PDF_SWEEP) $(EPS_SWEEP) $(PERF_CSV) $(PERF_TEX) \
-	      $(PDF_PLOT) $(EPS_PLOT) $(CSV_DIST)
+	      $(PDF_PLOT) $(EPS_PLOT) $(CSV_DIST) $(CSV_GAPS)

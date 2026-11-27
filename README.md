@@ -37,7 +37,8 @@ make test       # unit test plus randomized end-to-end checks
 prog [--cpu c] [--csv] [--stride d] [--ckpt t]
      [--bv plain|ef|rrr|auto] [--pmu] [--verify]
      [--seed s] [--range r] [--vary]
-     [--dist uniform|zipf|cluster] [--baseline] k n queries
+     [--dist uniform|zipf|cluster] [--baseline] [--gapstats]
+     k n queries
 ```
 
 - `k n queries`: number of lists, keys per list, random queries.
@@ -56,6 +57,10 @@ prog [--cpu c] [--csv] [--stride d] [--ckpt t]
   list lengths, or values in narrow clusters (queried near the
   data).
 - `--baseline`: answer queries with k independent binary searches.
+- `--gapstats` (reverse variant only): measure the gaps and
+  comparisons of every restricted binary search in an untimed
+  pass, and compare them with the expected-cost bound of the
+  paper.
 - `--cpu c`: pin to core `c`. `--csv`: one CSV line of output.
 
 Without `--csv` the output also lists the size of every bit-string
@@ -69,6 +74,7 @@ make CPU_CORE=2 plots            # k sweep -> results/sbfc_scaling.*
 make CPU_CORE=2 sweep-size       # list-length sweep
 make CPU_CORE=2 perf-tex         # hardware-counter table
 make CPU_CORE=2 dist-table       # uniform, Zipf, clustered inputs
+make gap-table                   # reverse-cascading gaps vs bound
 make CPU_CORE=2 SBFC_OPTS="--stride 4 --bv ef" csv
 ```
 

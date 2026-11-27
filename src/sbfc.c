@@ -8,7 +8,8 @@
  * usage: prog [--cpu c] [--csv] [--stride d] [--ckpt t]
  *             [--bv plain|ef|rrr|auto] [--pmu] [--verify]
  *             [--seed s] [--range r] [--vary]
- *             [--dist uniform|zipf|cluster] [--baseline] k n queries
+ *             [--dist uniform|zipf|cluster] [--baseline]
+ *             [--gapstats] k n queries
  *
  * --ckpt t stores sampled keys at levels 1, 1+t, 1+2t, ...;
  * t = 0 stores none (zero key duplication).
@@ -23,6 +24,9 @@
  * lengths following a Zipf law with N = k n kept; or cluster,
  * values in a few narrow clusters per list, queried near the data.
  * --baseline answers queries with k independent binary searches.
+ * --gapstats (reverse variant) measures, in an untimed pass, the
+ * gap g and the comparisons of every restricted binary search and
+ * compares them with the bounds of the expected-cost analysis.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -108,6 +112,7 @@ static space_t space;
 
 typedef struct {
     int cpu, csv, d, t, verify, vary, bv, pmu, dist, baseline;
+    int gapstats;
     uint64_t seed, range;
     int k;
     size_t n, q;
@@ -884,6 +889,115 @@ static void query_reverse(const sbfc_t *s, uint32_t x, size_t *out)
 
 static int baseline;
 
+/* ---------------- gap statistics of reverse cascading --------- */
+
+static size_t lb_count(const uint32_t *a, size_t lo, size_t hi,
+                       uint32_t x, double *cmp)
+{
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        *cmp += 1;
+        if (a[mid] < x)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo;
+}
+
+/* g[j], c[j]: summed gap and comparisons when searching L_j;
+ * c[k-1] holds the first binary search in L_k */
+static void gap_pass(const sbfc_t *s, const uint32_t *qs, size_t nq,
+                     double *g, double *c)
+{
+    int k = s->k;
+    size_t d = (size_t)s->d;
+    for (size_t q = 0; q < nq; q++) {
+        uint32_t x = qs[q];
+        size_t p = lb_count(s->L[k - 1], 0, s->n[k - 1], x,
+                            &c[k - 1]);
+        for (int i = k - 1; i > 0; i--) {
+            size_t sm = p / d;
+            int64_t a = nav_select(s, i - 1, sm);
+            int64_t z = nav_select(s, i - 1, sm + 1);
+            size_t lo = (size_t)(a + 1 - (int64_t)sm);
+            size_t hi = (size_t)(z - (int64_t)sm);
+            g[i - 1] += (double)(hi - lo);
+            p = lb_count(s->L[i - 1], lo, hi, x, &c[i - 1]) + sm;
+        }
+    }
+}
+
+typedef struct {
+    double g, est, bound, cmp, cmp_bound, max_ratio;
+    double total_cmp, total_bound;
+    int levels, over;
+} gapsum_t;
+
+static gapsum_t gap_summary(const sbfc_t *s, const double *g,
+                            const double *c, size_t nq)
+{
+    gapsum_t r = { 0 };
+    double q = nq ? (double)nq : 1.0, d = s->d;
+    double nk = (double)s->n[s->k - 1];
+    r.total_cmp = c[s->k - 1] / q;
+    r.total_bound = log2(nk + 1) + 1;
+    for (int j = 0; j + 1 < s->k; j++) {
+        double nj = (double)s->n[j], nn = (double)s->n[j + 1];
+        double bound = 2 * d * nj / (nn + 2);
+        double gj = g[j] / q, cj = c[j] / q;
+        double cb = 1 + log2(1 + bound);
+        r.total_cmp += cj;
+        r.total_bound += cb;
+        if (bound <= 0)
+            continue;
+        r.levels++;
+        r.g += gj;
+        r.est += (d + 1) * nj / ((double)s->m[j + 1] + 2);
+        r.bound += bound;
+        r.cmp += cj;
+        r.cmp_bound += cb;
+        r.over += gj > bound;
+        if (gj / bound > r.max_ratio)
+            r.max_ratio = gj / bound;
+    }
+    int l = r.levels ? r.levels : 1;
+    r.g /= l;
+    r.est /= l;
+    r.bound /= l;
+    r.cmp /= l;
+    r.cmp_bound /= l;
+    return r;
+}
+
+static void report_gaps(const opts_t *o, const sbfc_t *s,
+                        const uint32_t *qs, size_t N)
+{
+    double *g = xcalloc((size_t)s->k, sizeof *g);
+    double *c = xcalloc((size_t)s->k, sizeof *c);
+    gap_pass(s, qs, o->q, g, c);
+    gapsum_t r = gap_summary(s, g, c, o->q);
+    free(g);
+    free(c);
+    if (o->csv) {
+        printf("%d,%zu,%d,%.4f,%.4f,%.4f,%.4f,%d,%.4f,%.4f,"
+               "%.3f,%.3f\n", o->k, N, o->d, r.g, r.est, r.bound,
+               r.max_ratio, r.over, r.cmp, r.cmp_bound, r.total_cmp,
+               r.total_bound);
+        return;
+    }
+    printf("levels           : %d\n", r.levels);
+    printf("mean gap g       : %.4f\n", r.g);
+    printf("estimate         : %.4f\n", r.est);
+    printf("bound 2dn/(n'+2) : %.4f\n", r.bound);
+    printf("max g / bound    : %.4f\n", r.max_ratio);
+    printf("levels over bound: %d\n", r.over);
+    printf("cmp per level    : %.4f (bound %.4f)\n", r.cmp,
+           r.cmp_bound);
+    printf("cmp per query    : %.3f (bound %.3f)\n", r.total_cmp,
+           r.total_bound);
+}
+
 /* k independent binary searches, the reference point */
 static void query_baseline(const sbfc_t *s, uint32_t x, size_t *out)
 {
@@ -1068,7 +1182,7 @@ static void usage(const char *prog)
             "       [--bv plain|ef|rrr|auto] [--pmu] [--verify]\n"
             "       [--seed s] [--range r] [--vary]\n"
             "       [--dist uniform|zipf|cluster] [--baseline]\n"
-            "       k n queries\n",
+            "       [--gapstats] k n queries\n",
             prog);
     exit(2);
 }
@@ -1105,6 +1219,8 @@ static int parse_opt(opts_t *o, int argc, char **argv, int *i)
         return o->pmu = 1, 0;
     if (!strcmp(a, "--baseline"))
         return o->baseline = 1, 0;
+    if (!strcmp(a, "--gapstats") && VARIANT == REV)
+        return o->gapstats = 1, 0;
     if (!strcmp(a, "--verify"))
         return o->verify = 1, 0;
     if (!strcmp(a, "--vary"))
@@ -1394,7 +1510,9 @@ int main(int argc, char **argv)
         return 1;
     double ns = bench(&s, qs, o.q, out, &sum);
     int rc = o.verify ? verify(&s, qs, o.q, out) : 0;
-    if (rc == 0)
+    if (rc == 0 && o.gapstats)
+        report_gaps(&o, &s, qs, N);
+    else if (rc == 0)
         report(&o, &s, N, ns, sum);
 
     pmu_close();
