@@ -1,0 +1,9 @@
+# compiled binaries
+succinct_fc_2level
+strict_m1_sbfc
+rev_cascade_sbfc
+test_bv
+
+# temporary files
+smoke_bench.csv
+__pycache__/
