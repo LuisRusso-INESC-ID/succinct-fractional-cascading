@@ -8,13 +8,13 @@ if (!exists("OUT_EPS"))  OUT_EPS  = "sbfc_size_sweep.eps"
 set datafile separator ","
 
 # --- 1. PDF output ---
-set terminal pdfcairo enhanced color size 7in, 2.7in font "Helvetica,7"
+set terminal pdfcairo enhanced color size 7in, 3.0in font "Helvetica,9"
 set output OUT_PDF
 
-set multiplot layout 1,2 margins 0.08, 0.98, 0.16, 0.80 spacing 0.10, 0.12
+set multiplot layout 1,2 margins 0.085, 0.98, 0.18, 0.80 spacing 0.10, 0.12
 
 # Left panel: Query latency vs per-list length |L_i| (log2 x, log10 y)
-set title "Query Latency vs. Per-List Size |L_i| (k = 16)" font ",8"
+set title "Query Latency vs. Per-List Size |L_i| (k = 16)" font ",10"
 set xlabel "Elements per list |L_i|"
 set ylabel "Time per query (ns)"
 set logscale x 2
@@ -30,7 +30,7 @@ plot CSV_FILE every ::1 using 1:7  with linespoints lw 1.4 pt 7 ps 0.7 lc rgb "#
 
 # Right panel: Structural bits per input element vs per-list length |L_i|
 unset logscale y
-set title "Structural Index Bits / Input Elem vs. |L_i| (k = 16)" font ",8"
+set title "Structural Index Bits / Input Elem vs. |L_i| (k = 16)" font ",10"
 set xlabel "Elements per list |L_i|"
 set ylabel "Structural bits / N"
 set yrange [0:3.2]
@@ -58,12 +58,12 @@ unset multiplot
 unset output
 
 # --- 2. EPS output ---
-set terminal postscript eps enhanced color size 7in, 2.7in font "Helvetica,7"
+set terminal postscript eps enhanced color size 7in, 3.0in font "Helvetica,9"
 set output OUT_EPS
 
-set multiplot layout 1,2 margins 0.08, 0.98, 0.16, 0.80 spacing 0.10, 0.12
+set multiplot layout 1,2 margins 0.085, 0.98, 0.18, 0.80 spacing 0.10, 0.12
 
-set title "Query Latency vs. Per-List Size |L_i| (k = 16)" font ",8"
+set title "Query Latency vs. Per-List Size |L_i| (k = 16)" font ",10"
 set xlabel "Elements per list |L_i|"
 set ylabel "Time per query (ns)"
 set logscale x 2
@@ -78,7 +78,7 @@ plot CSV_FILE every ::1 using 1:7  with linespoints lw 1.4 pt 7 ps 0.7 lc rgb "#
      CSV_FILE every ::1 using 1:15 with linespoints lw 1.4 pt 9 ps 0.7 lc rgb "#2ca02c" title "Reverse-Cascade"
 
 unset logscale y
-set title "Structural Index Bits / Input Elem vs. |L_i| (k = 16)" font ",8"
+set title "Structural Index Bits / Input Elem vs. |L_i| (k = 16)" font ",10"
 set xlabel "Elements per list |L_i|"
 set ylabel "Structural bits / N"
 set yrange [0:3.2]

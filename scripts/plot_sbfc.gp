@@ -8,16 +8,17 @@ if (!exists("OUT_EPS"))  OUT_EPS  = "sbfc_scaling.eps"
 set datafile separator ","
 
 # --- 1. PDF output ---
-set terminal pdfcairo enhanced color size 7in, 2.5in font "Helvetica,7"
+set terminal pdfcairo enhanced color size 7in, 2.8in font "Helvetica,9"
 set output OUT_PDF
 
-set multiplot layout 1,3 margins 0.07, 0.985, 0.17, 0.80 spacing 0.08, 0.10
+set multiplot layout 1,3 margins 0.075, 0.985, 0.19, 0.79 spacing 0.085, 0.10
 
 # Panel 1: Query latency (ns/query)
-set title "Query Time vs. k (|L_i| = 65536)" font ",8"
+set title "Query Time vs. k (|L_i| = 65536)" font ",10"
 set xlabel "Number of catalogs (k)"
 set ylabel "Time per query (ns)"
 set logscale x 2
+set xrange [3.5:150]
 set logscale y 10
 set xtics (4, 8, 16, 32, 64, 128)
 set grid ytics xtics lc rgb "#dddddd" lt 1
@@ -28,9 +29,8 @@ plot CSV_FILE every ::1 using 1:6  with linespoints lw 1.4 pt 7 ps 0.7 lc rgb "#
      CSV_FILE every ::1 using 1:14 with linespoints lw 1.4 pt 9 ps 0.7 lc rgb "#2ca02c" title "Reverse-Cascade"
 
 # Panel 2: Total extra bits per input element (keys + bitvector/index)
-unset logscale x
 unset logscale y
-set title "Total Extra Bits / Input Elem (N)" font ",8"
+set title "Total Extra Bits / Input Elem (N)" font ",10"
 set xlabel "Number of catalogs (k)"
 set ylabel "Total extra bits / N"
 set xtics (4, 8, 16, 32, 64, 128)
@@ -42,7 +42,7 @@ plot CSV_FILE every ::1 using 1:5  with linespoints lw 1.4 pt 7 ps 0.7 lc rgb "#
      CSV_FILE every ::1 using 1:13 with linespoints lw 1.4 pt 9 ps 0.7 lc rgb "#2ca02c" title "Reverse-Cascade"
 
 # Panel 3: Structural bitvector/index bits per input element only
-set title "Structural Index Bits / Input Elem (N)" font ",8"
+set title "Structural Index Bits / Input Elem (N)" font ",10"
 set xlabel "Number of catalogs (k)"
 set ylabel "Structural bits / N"
 set xtics (4, 8, 16, 32, 64, 128)
@@ -71,15 +71,16 @@ unset multiplot
 unset output
 
 # --- 2. EPS output ---
-set terminal postscript eps enhanced color size 7in, 2.5in font "Helvetica,7"
+set terminal postscript eps enhanced color size 7in, 2.8in font "Helvetica,9"
 set output OUT_EPS
 
-set multiplot layout 1,3 margins 0.07, 0.985, 0.17, 0.80 spacing 0.08, 0.10
+set multiplot layout 1,3 margins 0.075, 0.985, 0.19, 0.79 spacing 0.085, 0.10
 
-set title "Query Time vs. k (|L_i| = 65536)" font ",8"
+set title "Query Time vs. k (|L_i| = 65536)" font ",10"
 set xlabel "Number of catalogs (k)"
 set ylabel "Time per query (ns)"
 set logscale x 2
+set xrange [3.5:150]
 set logscale y 10
 set xtics (4, 8, 16, 32, 64, 128)
 set grid ytics xtics lc rgb "#dddddd" lt 1
@@ -89,9 +90,8 @@ plot CSV_FILE every ::1 using 1:6  with linespoints lw 1.4 pt 7 ps 0.7 lc rgb "#
      CSV_FILE every ::1 using 1:10 with linespoints lw 1.4 pt 5 ps 0.7 lc rgb "#ff7f0e" title "M1-Only SBFC", \
      CSV_FILE every ::1 using 1:14 with linespoints lw 1.4 pt 9 ps 0.7 lc rgb "#2ca02c" title "Reverse-Cascade"
 
-unset logscale x
 unset logscale y
-set title "Total Extra Bits / Input Elem (N)" font ",8"
+set title "Total Extra Bits / Input Elem (N)" font ",10"
 set xlabel "Number of catalogs (k)"
 set ylabel "Total extra bits / N"
 set xtics (4, 8, 16, 32, 64, 128)
@@ -102,7 +102,7 @@ plot CSV_FILE every ::1 using 1:5  with linespoints lw 1.4 pt 7 ps 0.7 lc rgb "#
      CSV_FILE every ::1 using 1:9  with linespoints lw 1.4 pt 5 ps 0.7 lc rgb "#ff7f0e" title "M1-Only SBFC", \
      CSV_FILE every ::1 using 1:13 with linespoints lw 1.4 pt 9 ps 0.7 lc rgb "#2ca02c" title "Reverse-Cascade"
 
-set title "Structural Index Bits / Input Elem (N)" font ",8"
+set title "Structural Index Bits / Input Elem (N)" font ",10"
 set xlabel "Number of catalogs (k)"
 set ylabel "Structural bits / N"
 set xtics (4, 8, 16, 32, 64, 128)
